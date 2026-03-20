@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projet Transdisciplinaire — Groupe CILE</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Outfit:wght@200;300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep:#071520;
+  --navy:#0b2136;
+  --blue:#164e73;
+  --teal:#1a8a8a;
+  --aqua:#2ec4b6;
+  --cyan:#72efdd;
+  --white:#edf8f7;
+  --muted:#8fb3be;
+  --gold:#e0a84b;
+  --pipe:rgba(30,138,138,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow:hidden;height:100vh;width:100%}
+body{font-family:'Outfit',sans-serif;background:var(--deep);color:var(--white)}
+
+/* ═══ SVG PIPE NETWORK BACKGROUND ═══ */
+.pipe-bg{
+  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;
+}
+.pipe-bg svg{width:100%;height:100%}
+
+/* ═══ FLOWING WATER CANVAS ═══ */
+#riverCanvas{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.3}
+
+/* ═══ SUBTLE GRAIN ═══ */
+.grain{
+  position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.018;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px;
+}
+
+/* ═══ AMBIENT GLOWS ═══ */
+.glow{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(100px)}
+.glow-a{width:500px;height:500px;background:radial-gradient(circle,rgba(26,138,138,.14),transparent);top:-150px;right:-100px;animation:drift 16s ease-in-out infinite}
+.glow-b{width:400px;height:400px;background:radial-gradient(circle,rgba(46,196,182,.09),transparent);bottom:-100px;left:-100px;animation:drift 12s ease-in-out infinite reverse}
+@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}
+
+/* ═══ WATER DROPLETS ═══ */
+.drops{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.drop{
+  position:absolute;width:2px;border-radius:0 0 50% 50%;
+  background:linear-gradient(180deg,transparent,var(--aqua));opacity:0;
+  animation:fall linear infinite;
+}
+@keyframes fall{
+  0%{opacity:0;transform:translateY(-20px) scaleY(.5)}
+  10%{opacity:.4}
+  85%{opacity:.08}
+  100%{opacity:0;transform:translateY(100vh) scaleY(1.5)}
+}
+
+/* ═══ PROGRESS ═══ */
+.progress{
+  position:fixed;top:0;left:0;height:3px;z-index:300;
+  background:linear-gradient(90deg,var(--teal),var(--aqua),var(--cyan));
+  box-shadow:0 0 20px var(--aqua);
+  transition:width .65s cubic-bezier(.22,1,.36,1);
+}
+
+/* ═══ NAV DOTS ═══ */
+.dots{
+  position:fixed;right:28px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:14px;z-index:300;
+}
+.dot{
+  width:10px;height:10px;border-radius:50%;border:1.5px solid var(--muted);
+  background:transparent;cursor:pointer;transition:all .35s ease;
+}
+.dot.on{
+  width:13px;height:13px;background:var(--aqua);border-color:var(--aqua);
+  box-shadow:0 0 16px rgba(46,196,182,.55);
+}
+
+/* ═══ COUNTER ═══ */
+.ctr{
+  position:fixed;bottom:36px;right:48px;z-index:300;
+  font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted);letter-spacing:2px;
+}
+.ctr b{color:var(--aqua);font-size:24px;font-weight:400}
+
+/* ═══ HINT ═══ */
+.hint{
+  position:fixed;bottom:32px;left:50%;transform:translateX(-50%);z-index:300;
+  display:flex;align-items:center;gap:12px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
+  letter-spacing:1.5px;text-transform:uppercase;
+  animation:pulse 2.5s ease-in-out infinite;transition:opacity .5s;
+}
+.hint kbd{
+  padding:6px 22px;border:1px solid var(--muted);border-radius:7px;
+  font-size:11px;background:rgba(255,255,255,.03);font-family:inherit;color:inherit;
+}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* ═══ SLIDES ═══ */
+.slide{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:50px 70px;
+  opacity:0;transform:translateY(50px);
+  transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1);
+  pointer-events:none;z-index:5;
+}
+.slide.active{opacity:1;transform:translateY(0);pointer-events:auto;z-index:10}
+
+.inner{width:100%;max-width:1100px;display:flex;flex-direction:column}
+
+/* ═══ REVEAL ANIMATIONS ═══ */
+.rv{
+  opacity:0;transform:translateY(20px);
+  transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);
+}
+.active .rv{opacity:1;transform:translateY(0)}
+.active .rv.fl{transform:translateX(0)}
+.rv.fl{transform:translateX(-20px)}
+.active .rv.pop{transform:scale(1)}
+.rv.pop{transform:scale(.45)}
+
+.active .t1{transition-delay:.1s}
+.active .t2{transition-delay:.2s}
+.active .t3{transition-delay:.3s}
+.active .t4{transition-delay:.4s}
+.active .t5{transition-delay:.5s}
+.active .t6{transition-delay:.6s}
+.active .t7{transition-delay:.7s}
+.active .t8{transition-delay:.8s}
+
+/* ═══ COMMON ═══ */
+.stag{
+  font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--aqua);
+  letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;
+}
+.heading{
+  font-family:'Libre Baskerville',serif;font-weight:700;line-height:1.12;
+  font-size:clamp(36px,5.5vw,58px);margin-bottom:6px;
+}
+.glass{
+  background:rgba(11,33,54,.55);backdrop-filter:blur(24px);
+  border:1px solid rgba(46,196,182,.1);
+}
+
+/* ═══ S1 TITLE ═══ */
+.s-title{flex-direction:column;text-align:center}
+.pill{
+  display:inline-block;padding:8px 26px;border:1px solid var(--teal);border-radius:30px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:4px;
+  text-transform:uppercase;color:var(--aqua);margin-bottom:42px;
+}
+.hero{
+  font-family:'Libre Baskerville',serif;font-size:clamp(52px,9vw,120px);
+  font-weight:700;line-height:.98;letter-spacing:-2px;margin-bottom:22px;
+}
+.hero .hl{
+  background:linear-gradient(135deg,var(--aqua),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.sub{font-size:20px;color:var(--muted);font-weight:300;letter-spacing:1px;margin-bottom:54px}
+.crew{display:flex;gap:36px;flex-wrap:wrap;justify-content:center}
+.person{display:flex;flex-direction:column;align-items:center;gap:10px}
+.avi{
+  width:58px;height:58px;border-radius:50%;
+  background:linear-gradient(135deg,var(--teal),var(--aqua));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Libre Baskerville',serif;font-size:18px;font-weight:700;
+  box-shadow:0 6px 28px rgba(26,138,138,.35);
+}
+.person span{font-size:14px;color:var(--muted);font-weight:300}
+
+/* ═══ S2 AGENDA ═══ */
+.ag-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:30px}
+.ag{border-radius:18px;padding:32px;transition:transform .35s,border-color .35s;cursor:default}
+.ag:hover{transform:translateY(-5px)!important;border-color:var(--aqua)}
+.ag-n{
+  font-family:'Libre Baskerville',serif;font-size:52px;font-weight:700;
+  color:var(--teal);opacity:.25;line-height:1;margin-bottom:12px;
+}
+.ag-t{font-family:'Libre Baskerville',serif;font-size:22px;font-weight:700;margin-bottom:6px}
+.ag-d{font-size:16px;color:var(--muted);font-weight:300;line-height:1.5}
+
+/* ═══ S3 STATS ═══ */
+.st-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:30px}
+.st{text-align:center;padding:34px 18px;border-radius:18px}
+.st-i{font-size:30px;margin-bottom:16px}
+.st-v{
+  font-family:'Libre Baskerville',serif;font-size:46px;font-weight:700;
+  background:linear-gradient(135deg,var(--aqua),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:10px;line-height:1.1;
+}
+.st-l{font-size:15px;color:var(--muted);font-weight:300;line-height:1.5}
+.note{
+  margin-top:24px;padding:16px 26px;
+  background:rgba(224,168,75,.06);border-left:3px solid var(--gold);
+  border-radius:0 12px 12px 0;font-size:16px;color:var(--gold);font-weight:300;
+}
+
+/* ═══ S4 TIMELINE ═══ */
+.tl{position:relative;padding-left:50px;margin-top:34px}
+.tl-bar{
+  position:absolute;left:14px;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--teal),var(--aqua),transparent);
+}
+.tl-i{position:relative;padding-left:32px;padding-bottom:40px}
+.tl-i:last-child{padding-bottom:0}
+.tl-dot{
+  position:absolute;left:-40px;top:6px;width:16px;height:16px;border-radius:50%;
+  background:var(--aqua);box-shadow:0 0 18px rgba(46,196,182,.5);
+}
+.tl-i h3{font-family:'Libre Baskerville',serif;font-size:24px;font-weight:700;margin-bottom:10px}
+.tl-i p{font-size:18px;color:var(--muted);font-weight:300;line-height:1.6}
+
+/* ═══ S5 INASEP ═══ */
+.in-badge{
+  display:inline-block;padding:6px 16px;border:1px solid rgba(224,168,75,.5);border-radius:20px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:1px;color:var(--gold);
+  margin:10px 0 30px;
+}
+.in-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+.in-c{border-radius:22px;padding:40px}
+.in-c .ico{font-size:38px;margin-bottom:20px}
+.in-c h3{font-family:'Libre Baskerville',serif;font-size:24px;font-weight:700;margin-bottom:12px}
+.in-c p{font-size:16px;color:var(--muted);font-weight:300;line-height:1.7}
+
+/* ═══ S6 INTERCONNEXIONS ═══ */
+.ix-s{display:flex;flex-direction:column;gap:18px;margin-top:30px}
+.ix{
+  display:flex;align-items:flex-start;gap:20px;padding:28px 30px;
+  border-radius:16px;transition:transform .35s,border-color .35s;
+}
+.ix:hover{transform:translateX(10px)!important;border-color:var(--aqua)}
+.ix-i{
+  width:52px;height:52px;border-radius:14px;
+  background:linear-gradient(135deg,var(--teal),var(--aqua));
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+}
+.ix h3{font-family:'Libre Baskerville',serif;font-size:20px;font-weight:700;margin-bottom:6px}
+.ix p{font-size:16px;color:var(--muted);font-weight:300;line-height:1.6}
+
+/* ═══ S7 CONCLUSION ═══ */
+.s-end{flex-direction:column;text-align:center}
+.end-orb{
+  width:90px;height:90px;border-radius:50%;
+  background:linear-gradient(135deg,var(--teal),var(--aqua));
+  display:flex;align-items:center;justify-content:center;font-size:40px;
+  margin:0 auto 38px;box-shadow:0 0 70px rgba(46,196,182,.25);
+}
+.end-txt{
+  max-width:800px;margin:0 auto;
+  font-family:'Libre Baskerville',serif;font-size:clamp(22px,3.2vw,34px);
+  font-weight:400;line-height:1.6;
+}
+.end-txt em{font-style:italic;color:var(--aqua)}
+.end-lbl{
+  margin-top:38px;
+  font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:5px;
+  text-transform:uppercase;color:var(--muted);
+}
+
+/* ═══ CLICK ZONES ═══ */
+.cz{position:fixed;top:0;width:14%;height:100%;z-index:50;cursor:pointer}
+.cz-l{left:0}.cz-r{right:0}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:900px){
+  .st-grid{grid-template-columns:1fr 1fr}
+  .ag-grid,.in-grid{grid-template-columns:1fr}
+  .slide{padding:30px 28px}
+}
+</style>
+</head>
+<body>
+
+<!-- Background: SVG pipe network -->
+<div class="pipe-bg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a8a8a" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#2ec4b6" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="2" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <!-- Main horizontal pipes -->
+  <line x1="0" y1="180" x2="1440" y2="180" stroke="url(#pg)" stroke-width="3" opacity=".5"/>
+  <line x1="0" y1="720" x2="1440" y2="720" stroke="url(#pg)" stroke-width="2.5" opacity=".4"/>
+  <!-- Vertical connectors -->
+  <line x1="280" y1="0" x2="280" y2="900" stroke="url(#pg)" stroke-width="2" opacity=".3"/>
+  <line x1="720" y1="0" x2="720" y2="900" stroke="url(#pg)" stroke-width="2.5" opacity=".35"/>
+  <line x1="1100" y1="0" x2="1100" y2="900" stroke="url(#pg)" stroke-width="2" opacity=".3"/>
+  <!-- Diagonal flow -->
+  <line x1="0" y1="450" x2="500" y2="180" stroke="url(#pg)" stroke-width="1.5" opacity=".25"/>
+  <line x1="900" y1="720" x2="1440" y2="400" stroke="url(#pg)" stroke-width="1.5" opacity=".2"/>
+  <!-- Junction circles -->
+  <circle cx="280" cy="180" r="8" fill="none" stroke="#1a8a8a" stroke-width="1.5" opacity=".3" filter="url(#glow)"/>
+  <circle cx="720" cy="180" r="10" fill="none" stroke="#2ec4b6" stroke-width="1.5" opacity=".35" filter="url(#glow)"/>
+  <circle cx="1100" cy="180" r="7" fill="none" stroke="#1a8a8a" stroke-width="1.5" opacity=".25" filter="url(#glow)"/>
+  <circle cx="280" cy="720" r="9" fill="none" stroke="#2ec4b6" stroke-width="1.5" opacity=".3" filter="url(#glow)"/>
+  <circle cx="720" cy="720" r="11" fill="none" stroke="#1a8a8a" stroke-width="1.5" opacity=".35" filter="url(#glow)"/>
+  <circle cx="1100" cy="720" r="8" fill="none" stroke="#2ec4b6" stroke-width="1.5" opacity=".25" filter="url(#glow)"/>
+  <!-- Extra network lines -->
+  <line x1="280" y1="180" x2="720" y2="450" stroke="url(#pg)" stroke-width="1.5" opacity=".2"/>
+  <line x1="720" y1="450" x2="1100" y2="720" stroke="url(#pg)" stroke-width="1.5" opacity=".2"/>
+  <circle cx="720" cy="450" r="12" fill="none" stroke="#2ec4b6" stroke-width="2" opacity=".2" filter="url(#glow)"/>
+  <!-- Small branches -->
+  <line x1="500" y1="180" x2="500" y2="380" stroke="url(#pg)" stroke-width="1" opacity=".18"/>
+  <line x1="900" y1="720" x2="900" y2="520" stroke="url(#pg)" stroke-width="1" opacity=".18"/>
+  <circle cx="500" cy="380" r="5" fill="none" stroke="#1a8a8a" stroke-width="1" opacity=".2"/>
+  <circle cx="900" cy="520" r="5" fill="none" stroke="#1a8a8a" stroke-width="1" opacity=".2"/>
+  <!-- Water flow particles along pipes -->
+  <circle r="3" fill="#2ec4b6" opacity=".4" filter="url(#glow)">
+    <animateMotion dur="8s" repeatCount="indefinite" path="M0,180 L1440,180"/>
+  </circle>
+  <circle r="2.5" fill="#72efdd" opacity=".3" filter="url(#glow)">
+    <animateMotion dur="12s" repeatCount="indefinite" path="M280,0 L280,900"/>
+  </circle>
+  <circle r="3" fill="#2ec4b6" opacity=".35" filter="url(#glow)">
+    <animateMotion dur="10s" repeatCount="indefinite" path="M1440,720 L0,720"/>
+  </circle>
+  <circle r="2" fill="#72efdd" opacity=".3" filter="url(#glow)">
+    <animateMotion dur="9s" repeatCount="indefinite" path="M720,0 L720,900"/>
+  </circle>
+  <circle r="2.5" fill="#2ec4b6" opacity=".25" filter="url(#glow)">
+    <animateMotion dur="14s" repeatCount="indefinite" path="M280,180 L720,450 L1100,720"/>
+  </circle>
+</svg>
+</div>
+
+<canvas id="riverCanvas"></canvas>
+<div class="grain"></div>
+<div class="glow glow-a"></div>
+<div class="glow glow-b"></div>
+<div class="drops" id="drops"></div>
+
+<div class="progress" id="progress"></div>
+<div class="dots" id="dots"></div>
+<div class="ctr" id="ctr"></div>
+<div class="hint" id="hint"><kbd>ESPACE</kbd> slide suivante</div>
+<div class="cz cz-l" id="czL"></div>
+<div class="cz cz-r" id="czR"></div>
+
+<!-- ═══════════════════════ SLIDES ═══════════════════════ -->
+
+<!-- 1 TITLE -->
+<div class="slide s-title active" data-i="0">
+  <div class="pill rv t1">Intercommunale Liégeoise des Eaux</div>
+  <div class="hero rv t2">Projet<br><span class="hl">Transdisciplinaire</span></div>
+  <div class="sub rv t3">Groupe CILE — Domaine Technique</div>
+  <div class="crew rv t4">
+    <div class="person"><div class="avi">VA</div><span>Valentin Angenot</span></div>
+    <div class="person"><div class="avi">MA</div><span>Matteo Antonello</span></div>
+    <div class="person"><div class="avi">NH</div><span>Nicolas Henrotay</span></div>
+    <div class="person"><div class="avi">BV</div><span>Brieuc Verrekt</span></div>
+  </div>
+</div>
+
+<!-- 2 AGENDA -->
+<div class="slide" data-i="1">
+  <div class="inner">
+    <div class="stag rv t1">// Sommaire</div>
+    <div class="heading rv t2">Domaine Technique</div>
+    <div class="ag-grid">
+      <div class="ag glass rv t3"><div class="ag-n">01</div><div class="ag-t">Analyse Mini-Pelle et premières orientations</div><div class="ag-d">Tendances du marché, machines envisagées et dimensionnement</div></div>
+      <div class="ag glass rv t4"><div class="ag-n">02</div><div class="ag-t">Démarches réglementaires</div><div class="ag-d">Ouverture de voirie — contacts communes et polices</div></div>
+      <div class="ag glass rv t5"><div class="ag-n">03</div><div class="ag-t">Meeting à l'INASEP</div><div class="ag-d">Benchmarking intercommunal et formation</div></div>
+      <div class="ag glass rv t6"><div class="ag-n">04</div><div class="ag-t">Interconnexions Finance &amp; Marketing</div><div class="ag-d">Mapping, scénarios financiers et retours terrain</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 ANALYSE MINI-PELLE -->
+<div class="slide" data-i="2">
+  <div class="inner">
+    <div class="stag rv t1">// 01 — Analyse</div>
+    <div class="heading rv t2">Analyse Mini-Pelle</div>
+    <div class="st-grid">
+      <div class="st glass rv t3"><div class="st-i">📈</div><div class="st-v">Location</div><div class="st-l">Tendances du marché favorables à la location</div></div>
+      <div class="st glass rv t4"><div class="st-i">🔧</div><div class="st-v">2 machines</div><div class="st-l">Envisagées dans un premier temps : 1T7 et 2T6</div></div>
+      <div class="st glass rv t5"><div class="st-i">🏗️</div><div class="st-v">10 / sem.</div><div class="st-l">Chantiers par semaine visés</div></div>
+      <div class="st glass rv t6"><div class="st-i">⚠️</div><div class="st-v">40×</div><div class="st-l">La signalisation type nécessaire par chantier</div></div>
+    </div>
+    <div class="note rv fl t7">💡 Nécessité d'avoir 40× la signalisation type d'un chantier pour couvrir l'ensemble des opérations simultanées</div>
+  </div>
+</div>
+
+<!-- 4 DEMARCHES -->
+<div class="slide" data-i="3">
+  <div class="inner">
+    <div class="stag rv t1">// 02 — Réglementaire</div>
+    <div class="heading rv t2">Démarches Réglementaires</div>
+    <div class="tl">
+      <div class="tl-bar"></div>
+      <div class="tl-i rv fl t3"><div class="tl-dot"></div><h3>Contact des 24 communes et polices</h3><p>Prise de contact systématique avec l'ensemble des communes et zones de police de la zone CILE.</p></div>
+      <div class="tl-i rv fl t5"><div class="tl-dot"></div><h3>Démarches très variables</h3><p>Procédures très différentes d'une police ou commune à l'autre, nécessitant une adaptation constante.</p></div>
+      <div class="tl-i rv fl t7"><div class="tl-dot"></div><h3>Synthèse des informations auprès de la CILE</h3><p>Centralisation et synthèse de toutes les informations recueillies pour une vision claire et exploitable.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 INASEP -->
+<div class="slide" data-i="4">
+  <div class="inner">
+    <div class="stag rv t1">// 03 — Benchmarking</div>
+    <div class="heading rv t2">Meeting à l'INASEP</div>
+    <div class="in-badge rv t3">Intercommunale Namuroise de Services Publics</div>
+    <div class="in-grid">
+      <div class="in-c glass rv t4"><div class="ico">🔍</div><h3>Benchmarking</h3><p>Analyse d'une intercommunale réalisant déjà ces opérations d'ouverture de voirie, pour identifier les bonnes pratiques et anticiper les obstacles.</p></div>
+      <div class="in-c glass rv t5"><div class="ico">🤝</div><h3>Informations &amp; Formation</h3><p>Obtenir des informations clés et développer des liens pour la formation du personnel en charge des opérations terrain.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 INTERCONNEXIONS -->
+<div class="slide" data-i="5">
+  <div class="inner">
+    <div class="stag rv t1">// 04 — Transversal</div>
+    <div class="heading rv t2">Interconnexions Finance &amp; Marketing</div>
+    <div class="ix-s">
+      <div class="ix glass rv fl t3"><div class="ix-i">🗺️</div><div><h3>Mapping des processus</h3><p>Cartographie des processus sur chantier à venir pour structurer les opérations futures.</p></div></div>
+      <div class="ix glass rv fl t5"><div class="ix-i">📊</div><div><h3>Compétences financières</h3><p>Manque de compétences internes pour la réalisation des scénarios financiers liés à l'achat du matériel.</p></div></div>
+      <div class="ix glass rv fl t7"><div class="ix-i">👷</div><div><h3>Retours techniques terrain</h3><p>Caractère technique des retours des ouvriers suite au sondage marketing — une source d'informations opérationnelles précieuse.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 7 CONCLUSION -->
+<div class="slide s-end" data-i="6">
+  <div class="end-orb rv pop t2">💧</div>
+  <div class="end-txt rv t4">Notre mission : délivrer une étude de scénarios chiffrées en support des compétences techniques de la CILE, en apportant une <em>vision systémique et globale</em>.</div>
+  <div class="end-lbl rv t6">Groupe CILE — Projet Transdisciplinaire</div>
+</div>
+
+<!-- ═══════════════════════ SCRIPT ═══════════════════════ -->
+<script>
+(function(){
+  /* ── Water drops ── */
+  var dc=document.getElementById('drops');
+  for(var i=0;i<20;i++){
+    var d=document.createElement('div');d.className='drop';
+    d.style.cssText='left:'+Math.random()*100+'%;height:'+(12+Math.random()*20)+'px;animation-duration:'+(5+Math.random()*10)+'s;animation-delay:'+(Math.random()*8)+'s;';
+    dc.appendChild(d);
+  }
+
+  /* ── River canvas — gentle flowing current ── */
+  var cv=document.getElementById('riverCanvas'),cx=cv.getContext('2d'),cW,cH;
+  function rsz(){cW=cv.width=innerWidth;cH=cv.height=innerHeight}
+  rsz();addEventListener('resize',rsz);
+  var t=0;
+  (function draw(){
+    cx.clearRect(0,0,cW,cH);t+=.004;
+    // Multiple flowing water layers
+    for(var l=0;l<5;l++){
+      cx.beginPath();cx.moveTo(0,cH);
+      for(var x=0;x<=cW;x+=5){
+        var y=cH*.5
+          +Math.sin(x*.002+t*1.2+l*1.8)*30
+          +Math.sin(x*.005+t*1.6+l*.5)*15
+          +Math.cos(x*.001+t*.4+l*.3)*40
+          +l*45;
+        cx.lineTo(x,y);
+      }
+      cx.lineTo(cW,cH);cx.closePath();
+      cx.fillStyle='rgba(26,138,138,'+(0.008+l*.005)+')';cx.fill();
+    }
+    requestAnimationFrame(draw);
+  })();
+
+  /* ── Slides ── */
+  var slides=document.querySelectorAll('.slide'),total=slides.length,cur=0,busy=false;
+  var prog=document.getElementById('progress'),ctr=document.getElementById('ctr');
+  var hint=document.getElementById('hint'),dotsEl=document.getElementById('dots');
+
+  for(var i=0;i<total;i++){
+    var dot=document.createElement('div');
+    dot.className='dot'+(i===0?' on':'');
+    dot.setAttribute('data-idx',i);
+    dot.addEventListener('click',function(){go(+this.getAttribute('data-idx'))});
+    dotsEl.appendChild(dot);
+  }
+  var dots=dotsEl.querySelectorAll('.dot');
+
+  function pad(n){return n<10?'0'+n:''+n}
+  function ui(){
+    prog.style.width=((cur+1)/total*100)+'%';
+    ctr.innerHTML='<b>'+pad(cur+1)+'</b> / '+pad(total);
+    for(var i=0;i<dots.length;i++)dots[i].className='dot'+(i===cur?' on':'');
+    hint.style.opacity=cur===0?'':'0';
+    hint.style.pointerEvents=cur===0?'':'none';
+  }
+
+  function go(idx){
+    if(busy||idx===cur||idx<0||idx>=total)return;
+    busy=true;
+    var dir=idx>cur?1:-1,old=slides[cur],nxt=slides[idx];
+    old.classList.remove('active');
+    old.style.opacity='0';
+    old.style.transform=dir>0?'translateY(-50px)':'translateY(50px)';
+    cur=idx;ui();
+    setTimeout(function(){
+      old.style.transform='';
+      nxt.style.opacity='0';
+      nxt.style.transform=dir>0?'translateY(50px)':'translateY(-50px)';
+      void nxt.offsetHeight;
+      nxt.classList.add('active');
+      nxt.style.opacity='';
+      nxt.style.transform='';
+    },100);
+    setTimeout(function(){busy=false},800);
+  }
+
+  function next(){go(cur+1)}function prev(){go(cur-1)}
+
+  addEventListener('keydown',function(e){
+    if(e.code==='Space'||e.code==='ArrowDown'||e.code==='ArrowRight'){e.preventDefault();next()}
+    if(e.code==='ArrowUp'||e.code==='ArrowLeft'){e.preventDefault();prev()}
+  });
+  var wt;
+  addEventListener('wheel',function(e){e.preventDefault();clearTimeout(wt);wt=setTimeout(function(){e.deltaY>0?next():prev()},80)},{passive:false});
+  var sy=0;
+  addEventListener('touchstart',function(e){sy=e.touches[0].clientY});
+  addEventListener('touchend',function(e){var d=sy-e.changedTouches[0].clientY;if(Math.abs(d)>50)d>0?next():prev()});
+  document.getElementById('czL').addEventListener('click',prev);
+  document.getElementById('czR').addEventListener('click',next);
+  ui();
+})();
+</script>
+</body>
+</html>
